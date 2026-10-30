@@ -317,8 +317,9 @@ def _discover_repos_payload(
     return out
 
 
-# Not user conversations; subagent/compression children are dropped by include_children=False.
-_PROJECT_TREE_EXCLUDED_SOURCES = ["cron", "kanban", "oneshot"]
+# Cron/kanban have dedicated surfaces. Finite CLI builds belong to project history;
+# their oneshot source stays intact. Child sessions are dropped by include_children=False.
+_PROJECT_TREE_EXCLUDED_SOURCES = ["cron", "kanban"]
 
 
 def _project_tree_row(r: dict) -> dict:

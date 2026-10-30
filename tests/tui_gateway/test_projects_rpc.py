@@ -759,3 +759,38 @@ def test_projects_without_a_profile_stay_on_the_launch_home(monkeypatch, tmp_pat
     assert not (Path(os.environ["HERMES_HOME"]) / "projects.db").exists()
 
 
+
+
+def test_project_tree_and_drill_in_include_unattended_project_runs(tmp_path):
+    """An unattended build is project history; cron/kanban keep their own surfaces."""
+    from hermes_state import SessionDB
+
+    home = _profile_dir(tmp_path, "unattended")
+    repo = tmp_path / "project"
+    repo.mkdir()
+    project = _create_project(home, "Night build", repo)
+    db = SessionDB(db_path=home / "state.db")
+    try:
+        for source in ("cli", "oneshot", "cron", "kanban"):
+            db.create_session(source, source, cwd=str(repo))
+            db.append_message(source, "user", f"work from {source}")
+    finally:
+        db.close()
+
+    with _serving_launch_profile(home):
+        tree = _call("projects.tree")
+        drill = _call("projects.project_sessions", {"project_id": project["id"]})
+        assert server._db.get_session("oneshot")["source"] == "oneshot"
+
+    overview = next(p for p in tree["projects"] if p["id"] == project["id"])
+    assert overview["sessionCount"] == 2
+    assert {s["id"] for s in overview["previewSessions"]} == {"cli", "oneshot"}
+    assert set(tree["scoped_session_ids"]) == {"cli", "oneshot"}
+    sessions = [
+        session
+        for repo in drill["project"]["repos"]
+        for group in repo["groups"]
+        for session in group["sessions"]
+    ]
+    assert {s["id"] for s in sessions} == {"cli", "oneshot"}
+    assert next(s for s in sessions if s["id"] == "oneshot")["source"] == "oneshot"
